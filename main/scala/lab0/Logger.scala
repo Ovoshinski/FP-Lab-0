@@ -4,15 +4,14 @@ import java.io.{FileWriter, PrintWriter}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-// Технический журнал приложения.
-// Пишет события в текстовый файл (append).
-// НЕ пишет: полный текст команд, stdout, stderr, комментарии.
+//Технический журнал. Пишет события в файл, дописывая в конец
 object Logger:
 
   private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
   private var writer: Option[PrintWriter] = None
 
-  // Открыть журнал по указанному пути (создаёт родительские папки)
+
+  //Открывает файл. Если родительских папок нет — создаёт их
   def init(logFile: String): Unit =
     try
       val f = new java.io.File(logFile)
@@ -23,21 +22,25 @@ object Logger:
       case e: Exception =>
         println(s"Не удалось открыть журнал: ${e.getMessage}")
 
+
   def info(msg: String): Unit  = log("INFO", msg)
   def warn(msg: String): Unit  = log("WARN", msg)
   def error(msg: String): Unit = log("ERROR", msg)
 
+
+  //Формирует строку "[дата время] сообщение" и пишет в файл
   private def log(level: String, msg: String): Unit =
     val ts = LocalDateTime.now().format(formatter)
-    val line = s"[$ts] $level  $msg"
+    val line = s"[$ts]  $msg"
     writer.foreach { w =>
       w.println(line)
       w.flush()
     }
 
+
   def close(): Unit =
     writer.foreach { w =>
-      info("Приложение завершено")
+      info("Приложение завершено.")
       w.close()
     }
     writer = None

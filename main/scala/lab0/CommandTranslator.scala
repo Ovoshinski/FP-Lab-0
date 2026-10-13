@@ -1,20 +1,14 @@
 package lab0
 
-// ============================================================
-// Транслятор POSIX-команд в аналоги Windows.
-// На Linux/macOS/macOS ничего не меняет.
-// На Windows 11 переводит ls, cat, mkdir, touch, rm, cp, mv,
-// pwd, grep в команды cmd.exe (dir, type, mkdir, del, copy,
-// move, cd, findstr).
-// ============================================================
+//Преобразование POSIX-команд в аналоги Windows.
 object CommandTranslator:
 
-  // Определяем ОС
   val isWindows: Boolean =
     System.getProperty("os.name").toLowerCase.contains("win")
 
-  // Вернуть (исполняемый_файл, аргументы) — уже под текущую ОС
-  def translate(cmd: String, args: List[String]): (String, List[String]) =
+
+  //Возвращает пару (команду, аргументы)
+  def translate(cmd: String, args: List[String], cwd: String): (String, List[String]) =
     if !isWindows then (cmd, args)
     else
       cmd match
@@ -23,33 +17,46 @@ object CommandTranslator:
         case "pwd"   => ("cmd.exe", List("/c", "cd"))
         case "mkdir" => ("cmd.exe", List("/c", "mkdir") ++ args)
         case "touch" => translateTouch(args)
-        case "rm"    => translateRm(args)
+        case "rm"    => translateRm(args, cwd)
         case "cp"    => translateCp(args)
         case "mv"    => ("cmd.exe", List("/c", "move") ++ args.filterNot(_.startsWith("-")))
         case "grep"  => ("cmd.exe", List("/c", "findstr") ++ args)
         case _       => (cmd, args)
 
-  // ls -> dir (с флагом /a, если есть -a)
+
+  //ls -> dir. Флаг -a даёт /a — показать скрытые файлы
   private def translateLs(args: List[String]): (String, List[String]) =
     val showAll = args.exists(a => a.startsWith("-") && a.contains("a"))
     val paths   = args.filterNot(_.startsWith("-"))
     val flags   = if showAll then List("/a") else Nil
     ("cmd.exe", List("/c", "dir") ++ flags ++ paths)
 
-  // touch -> cmd /c "type nul > file"
+
+  //touch -> создать пустой файл
   private def translateTouch(args: List[String]): (String, List[String]) =
     args.headOption match
       case Some(f) => ("cmd.exe", List("/c", s"type nul > $f"))
       case None    => ("cmd.exe", List("/c", "type", "nul"))
 
-  // rm -> del (или rmdir /s /q для -r)
-  private def translateRm(args: List[String]): (String, List[String]) =
-    val recursive = args.exists(a => a.startsWith("-") && a.contains("r"))
+
+  //rm -> автоматически выбирает del (файл) или rmdir /s /q (каталог)
+  private def translateRm(args: List[String], cwd: String): (String, List[String]) =
     val files = args.filterNot(_.startsWith("-"))
     files.headOption match
-      case Some(f) if recursive => ("cmd.exe", List("/c", "rmdir", "/s", "/q", f))
-      case Some(f)              => ("cmd.exe", List("/c", "del", f))
-      case None                 => ("cmd.exe", List("/c", "del"))
+      case Some(f) =>
+        val isDir =
+          try
+            val p = os.Path(f, os.Path(cwd))
+            os.exists(p) && os.isDir(p)
+          catch
+            case _: Exception => false
+
+        if isDir then ("cmd.exe", List("/c", "rmdir", "/s", "/q", f))
+        else         ("cmd.exe", List("/c", "del", f))
+
+      case None =>
+        ("cmd.exe", List("/c", "del"))
+
 
   // cp -> copy
   private def translateCp(args: List[String]): (String, List[String]) =

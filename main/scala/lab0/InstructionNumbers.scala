@@ -1,46 +1,56 @@
 package lab0
 
-// ============================================================
-// Реестр номеров команд.
-// Позволяет вводить "0", "1", ..., "19" вместо имён команд.
-// Например, "0" = ends, "18" = instructions.
-// Если пользователь вводит "18 10" — это "справка про команду #10".
-// ============================================================
+//Реестр номеров команд
+// 0 — выход
+// 1-9 — файловые команды
+// 10-19 — команды для работы с отчётом
 object InstructionNumbers:
 
-  // Соответствие: номер -> имя команды
   val map: Map[Int, String] = Map(
-    0  -> "ends",
-    1  -> "starts",
-    2  -> "prootd",
-    3  -> "mstep",
-    4  -> "mnote",
-    5  -> "mskip",
-    6  -> "mstatus",
-    7  -> "mpreview",
-    8  -> "cd",
-    9  -> "pwd",
-    10 -> "ls",
-    11 -> "mkdir",
-    12 -> "touch",
-    13 -> "cat",
-    14 -> "cp",
-    15 -> "mv",
-    16 -> "rm",
+    0  -> "exit",
+
+    1  -> "cd",
+    2  -> "pwd",
+    3  -> "ls",
+    4  -> "mkdir",
+    5  -> "touch",
+    6  -> "cat",
+    7  -> "cp",
+    8  -> "mv",
+    9  -> "rm",
+
+    10 -> "starts",
+    11 -> "prootd",
+    12 -> "mstep",
+    13 -> "mnote",
+    14 -> "mskip",
+    15 -> "mstatus",
+    16 -> "mpreview",
     17 -> "info",
     18 -> "instructions",
-    19 -> "exit"
+    19 -> "ends"
   )
 
-  // Обратное соответствие: имя -> номер
   val reverseMap: Map[String, Int] = map.map(_.swap)
 
-  // Разобрать ввод: если первый токен — число, заменить его на имя команды.
+
+  //Переводит ввод в (имя_команды, аргументы)
   def resolve(input: String): (String, List[String]) =
     val (first, rest) = CommandParser.parse(input)
+
     if first.matches("\\d+") then
       map.get(first.toInt) match
+        case Some("mv") =>
+          rest.headOption match
+            case Some("rename") | Some("move") => ("mv", rest.tail)
+            case _ => ("mv", rest)
         case Some(cmd) => (cmd, rest)
         case None      => (first, rest)
     else
-      (first, rest)
+      first match
+        case "rename" | "move" => ("mv", rest)
+        case "mv" =>
+          rest.headOption match
+            case Some("rename") | Some("move") => ("mv", rest.tail)
+            case _ => ("mv", rest)
+        case _ => (first, rest)

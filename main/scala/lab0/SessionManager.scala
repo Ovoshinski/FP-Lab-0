@@ -1,42 +1,73 @@
 package lab0
 
 import java.time.LocalDateTime
+import upickle.default.*
 
-// ============================================================
-// Менеджер сессии: начало, конец, шаги, команды, cd.
-// Хранит текущую сессию в памяти и предоставляет методы работы с ней.
-// ============================================================
+//Управление сессией: начать, завершить, шаги, заметки, cwd, сохранение
 class SessionManager(config: AppConfig, initialCwd: String):
 
-  // Текущая сессия (None = не активна)
   private var currentSession: Option[Session] = None
-
-  // Индекс текущего шага (-1 = шага ещё нет)
+  private var standaloneCwd: String = initialCwd
   private var currentStepIndex: Int = -1
-
-  // Флаг mskip: следующая команда пропускается
   private var skipNext: Boolean = false
-
-  // Счётчик команд в сессии
   private var commandCounter: Int = 0
 
-  // Текущий рабочий каталог
-  def cwd: String =
-    currentSession.map(_.currentDirectory).getOrElse(initialCwd)
 
-  // Активна ли сессия
+  //Текущий рабочий каталог
+  def cwd: String =
+    currentSession.map(_.currentDirectory).getOrElse(standaloneCwd)
+
   def isActive: Boolean =
     currentSession.exists(_.status == "active")
 
-  // Установить флаг mskip
   def setSkipFlag(): Unit = skipNext = true
 
-  // -------------------- Управление сессией --------------------
 
-  // Начать новую сессию
+  //Путь к файлу сохранённой сессии
+  private def sessionFilePath: String =
+    val dir = os.Path(config.sessionDirectory, os.pwd)
+    os.makeDir.all(dir)
+    (dir / "current-session.json").toString
+
+
+  //Записать текущую сессию
+  def saveSession(): Unit =
+    currentSession.foreach { s =>
+      try os.write.over(os.Path(sessionFilePath), write(s))
+      catch case e: Exception => Logger.error(s"Не удалось сохранить сессию: ${e.getMessage}")
+    }
+
+
+  //Удалить файл сессии (после ends)
+  def clearSessionFile(): Unit =
+    try
+      val p = os.Path(sessionFilePath)
+      if os.exists(p) then os.remove(p)
+    catch case _: Exception => ()
+
+
+  //Прочитать сессию с диска
+  def loadSessionFromDisk(): Option[Session] =
+    try
+      val p = os.Path(sessionFilePath)
+      if !os.exists(p) then None
+      else Some(read[Session](os.read(p)))
+    catch
+      case e: Exception =>
+        Logger.error(s"Не удалось загрузить сессию: ${e.getMessage}")
+        None
+
+
+  //Восстановить работу с уже загруженной сессией
+  def resumeSession(s: Session): Unit =
+    currentSession = Some(s)
+    currentStepIndex = s.steps.size - 1
+    commandCounter = s.steps.flatMap(_.commands).size
+
+
+  //Начать новую сессию
   def startSession(name: String): Either[String, Unit] =
-    if isActive then
-      Left("Сессия уже активна. Завершите её командой ends.")
+    if isActive then Left("Сессия уже активна. Завершите её командой ends.")
     else
       val session = Session(
         name = if name.trim.isEmpty then "Без названия" else name.trim,
@@ -51,9 +82,11 @@ class SessionManager(config: AppConfig, initialCwd: String):
       currentStepIndex = -1
       commandCounter = 0
       Logger.info(s"Начата сессия: \"${session.name}\"")
+      saveSession()
       Right(())
 
-  // Установить корневой каталог
+
+  //Задать корневой каталог сессии
   def setRoot(path: String): Either[String, Unit] =
     currentSession match
       case None => Left("Нет активной сессии.")
@@ -65,42 +98,44 @@ class SessionManager(config: AppConfig, initialCwd: String):
         else
           currentSession = Some(s.copy(rootDirectory = resolved))
           Logger.info(s"Root установлен: $resolved")
+          saveSession()
           Right(())
 
-  // -------------------- Шаги и заметки --------------------
 
-  // Создать новый шаг
+  //Создать новый шаг
   def newStep(title: String): Either[String, Unit] =
     currentSession match
       case None => Left("Нет активной сессии.")
       case Some(s) =>
         val idx = s.steps.size
         val actualTitle = if title.trim.isEmpty then s"Шаг ${idx + 1}" else title.trim
-        val step = Step(index = idx, title = actualTitle)
-        currentSession = Some(s.copy(steps = s.steps :+ step))
+        currentSession = Some(s.copy(steps = s.steps :+ Step(idx, actualTitle)))
         currentStepIndex = idx
         Logger.info(s"Создан шаг #$idx: \"$actualTitle\"")
+        saveSession()
         Right(())
 
-  // Добавить комментарий в текущий шаг
+
+  //Добавить комментарий в текущий шаг. Если шага нет — создаёт "Шаг 1"
   def addNote(text: String): Either[String, Unit] =
     currentSession match
       case None => Left("Нет активной сессии.")
       case Some(s) =>
-        // Если шага нет — создаём "Шаг 1"
         if currentStepIndex < 0 then newStep("Шаг 1")
         currentSession match
           case Some(s2) =>
             val step = s2.steps(currentStepIndex)
-            val newStep = step.copy(notes = step.notes :+ text)
-            val newSteps = s2.steps.updated(currentStepIndex, newStep)
+            val newSteps = s2.steps.updated(
+              currentStepIndex,
+              step.copy(notes = step.notes :+ text)
+            )
             currentSession = Some(s2.copy(steps = newSteps))
+            saveSession()
             Right(())
           case None => Left("Ошибка")
 
-  // -------------------- Команды --------------------
 
-  // Записать выполненную команду в текущий шаг
+  //Записать команду в текущий шаг (или создать "Шаг 1", если его нет)
   def recordCommand(
                      text: String, commandName: String, args: List[String],
                      cwdBefore: String, cwdAfter: String,
@@ -109,10 +144,11 @@ class SessionManager(config: AppConfig, initialCwd: String):
                    ): Unit =
     currentSession.foreach { s =>
       if skipNext then
-        // Команда исключена из отчёта
+        // Команда была помечена mskip — не попадает в отчёт.
         Logger.info(s"Команда id=$commandCounter исключена из отчёта")
         commandCounter += 1
         skipNext = false
+        saveSession()
       else
         val rec = CommandRecord(
           id = commandCounter, text = text, commandName = commandName,
@@ -122,30 +158,36 @@ class SessionManager(config: AppConfig, initialCwd: String):
           stepIndex = if currentStepIndex < 0 then 0 else currentStepIndex,
           included = true
         )
-        // Если шагов ещё нет — создаём автоматически "Шаг 1"
         val steps =
-          if s.steps.isEmpty then
-            List(Step(0, "Шаг 1", Nil, List(rec)))
+          if s.steps.isEmpty then List(Step(0, "Шаг 1", Nil, List(rec)))
           else
             val idx = currentStepIndex.max(0)
             val step = s.steps(idx)
-            val newStep = step.copy(commands = step.commands :+ rec)
-            s.steps.updated(idx, newStep)
+            s.steps.updated(idx, step.copy(commands = step.commands :+ rec))
+
         currentSession = Some(s.copy(steps = steps))
         commandCounter += 1
+        saveSession()
     }
 
-  // Изменить текущий каталог (для cd)
+
+  //Сменить рабочий каталог. Работает и до, и во время сессии
   def changeDirectory(path: String): Either[String, String] =
-    val resolved = resolvePath(path)
+    val actualPath = if path.trim == "up" then ".." else path.trim
+    val resolved = resolvePath(actualPath)
     val p = os.Path(resolved)
+
     if !os.exists(p) then Left(s"Каталог не существует: $path")
     else if !os.isDir(p) then Left(s"Не является каталогом: $path")
     else
-      currentSession = currentSession.map(_.copy(currentDirectory = resolved))
+      currentSession match
+        case Some(s) => currentSession = Some(s.copy(currentDirectory = resolved))
+        case None    => standaloneCwd = resolved
+      saveSession()
       Right(resolved)
 
-  // Завершить сессию
+
+  //Завершить сессию
   def endSession(): Either[String, Session] =
     currentSession match
       case None => Left("Нет активной сессии.")
@@ -153,15 +195,13 @@ class SessionManager(config: AppConfig, initialCwd: String):
         val finished = s.copy(endTime = Some(LocalDateTime.now()), status = "finished")
         currentSession = Some(finished)
         Logger.info(s"Сессия завершена: \"${s.name}\"")
+        clearSessionFile()
         Right(finished)
 
-  // Геттеры
+
   def getSession: Option[Session] = currentSession
   def getCurrentStepIndex: Int = currentStepIndex
-
-  // -------------------- Утилиты --------------------
-
-  // Разрешить путь относительно cwd, обработать "~"
+  
   private def resolvePath(path: String): String =
     val trimmed = path.trim
     val base = if trimmed.startsWith("~") then sys.env.getOrElse("HOME", "/home") else cwd

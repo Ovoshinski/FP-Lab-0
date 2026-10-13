@@ -2,24 +2,21 @@ package lab0
 
 import java.time.format.DateTimeFormatter
 
-// ============================================================
-// Генерация Markdown-отчёта из сессии.
-// ============================================================
+//Генерация Markdown-отчёта из готовой сессии
 object ReportGenerator:
 
-  // Формат даты для заголовка
   private val dateFmt = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm")
 
-  // Сгенерировать Markdown-текст отчёта
+
   def generate(session: Session, config: AppConfig, engine: RuleEngine): String =
     val sb = new StringBuilder
 
-    // ----- Заголовок -----
+    //Заголовок
     val profile = config.profiles.getOrElse(session.profile, config.profiles(config.defaultProfile))
     val title = profile.titleTemplate.replace("{sessionName}", session.name)
     sb.append(s"# $title\n\n")
 
-    // ----- Сведения о сессии -----
+    //Сведения о сессии
     sb.append("## Сведения о сессии\n\n")
     sb.append(s"- Начало: ${session.startTime.format(dateFmt)}\n")
     session.endTime.foreach(t => sb.append(s"- Завершение: ${t.format(dateFmt)}\n"))
@@ -27,38 +24,28 @@ object ReportGenerator:
     sb.append(s"- Командный интерпретатор: `${session.shell}`\n")
     sb.append(s"- Профиль: `${session.profile}`\n\n")
 
-    // ----- Шаги (только непустые) -----
+    //Шаги — пустые пропускаем
     val nonEmptySteps = session.steps.filterNot(_.isEmpty)
     nonEmptySteps.zipWithIndex.foreach { case (step, idx) =>
       sb.append(s"## Шаг ${idx + 1}. ${step.title}\n\n")
 
-      // Комментарии пользователя
-      step.notes.foreach { note =>
-        sb.append(s"$note\n\n")
-      }
+      step.notes.foreach(note => sb.append(s"$note\n\n"))
 
-      // Команды шага
       step.commands.filter(_.included).foreach { rec =>
         engine.selectRule(rec) match
           case Some(rule) =>
-            // Описание из шаблона
             val desc = engine.fillTemplate(rule.descriptionTemplate, rec, session)
             sb.append(s"$desc\n\n")
-            // Сам текст команды
-            if rule.showCommand then
-              sb.append(s"```bash\n${rec.text}\n```\n\n")
-            // Вывод
+            if rule.showCommand then sb.append(s"```bash\n${rec.text}\n```\n\n")
             appendOutput(sb, rec, rule.outputMode, rule.outputLanguage, rule.maximumLines)
 
           case None =>
-            // Универсальное представление
             sb.append(s"Выполним команду:\n\n")
             sb.append(s"```bash\n${rec.text}\n```\n\n")
             appendOutput(sb, rec, "full", "text", None)
       }
     }
-
-    // ----- Ошибки -----
+    
     val errors = session.steps.flatMap(_.commands).filter(c => c.included && c.exitCode != 0)
     if errors.nonEmpty then
       sb.append("## Ошибки и предупреждения\n\n")
@@ -68,11 +55,11 @@ object ReportGenerator:
           sb.append(s"```text\n${escapeFences(rec.stderr)}\n```\n\n")
       }
 
-    // ----- Итоги -----
+    //Итоги
     val allCommands = session.steps.flatMap(_.commands)
     val included = allCommands.count(_.included)
-    val success = allCommands.count(c => c.included && c.exitCode == 0)
-    val failed = allCommands.count(c => c.included && c.exitCode != 0)
+    val success  = allCommands.count(c => c.included && c.exitCode == 0)
+    val failed   = allCommands.count(c => c.included && c.exitCode != 0)
 
     sb.append("## Итоги\n\n")
     sb.append(s"- Выполнено команд: $included\n")
@@ -82,31 +69,28 @@ object ReportGenerator:
 
     sb.toString
 
-  // -------------------- Утилиты --------------------
 
-  // Добавить блок с выводом команды в зависимости от режима
+  //Добавить блок с выводом команды в зависимости от режима
   private def appendOutput(
-                            sb: StringBuilder,
-                            rec: CommandRecord,
-                            mode: String,
-                            lang: String,
-                            maxLines: Option[Int]
+                            sb: StringBuilder, rec: CommandRecord,
+                            mode: String, lang: String, maxLines: Option[Int]
                           ): Unit =
     val text = mode match
-      case "none"         => ""
-      case "errors-only"  => rec.stderr
-      case "full"         => rec.stdout + (if rec.stderr.nonEmpty then "\n" + rec.stderr else "")
-      case "first-lines"  => rec.stdout.linesIterator.take(maxLines.getOrElse(10)).mkString("\n")
-      case "last-lines"   => rec.stdout.linesIterator.toList.takeRight(maxLines.getOrElse(10)).mkString("\n")
-      case "limited"      => rec.stdout.linesIterator.take(maxLines.getOrElse(30)).mkString("\n")
-      case "summary"      =>
+      case "none"        => ""
+      case "errors-only" => rec.stderr
+      case "full"        => rec.stdout + (if rec.stderr.nonEmpty then "\n" + rec.stderr else "")
+      case "first-lines" => rec.stdout.linesIterator.take(maxLines.getOrElse(10)).mkString("\n")
+      case "last-lines"  => rec.stdout.linesIterator.toList.takeRight(maxLines.getOrElse(10)).mkString("\n")
+      case "limited"     => rec.stdout.linesIterator.take(maxLines.getOrElse(30)).mkString("\n")
+      case "summary"     =>
         val lines = rec.stdout.linesIterator.size
         s"Строк вывода: $lines, код завершения: ${rec.exitCode}"
-      case _              => rec.stdout
+      case _ => rec.stdout
 
     if text.nonEmpty then
       sb.append(s"```$lang\n${escapeFences(text)}\n```\n\n")
 
-  // Экранировать ``` внутри текста, чтобы не сломать Markdown
+
+  //Экранировать ``` внутри текста, чтобы не сломать Markdown.
   private def escapeFences(text: String): String =
     text.replace("```", "`` `")

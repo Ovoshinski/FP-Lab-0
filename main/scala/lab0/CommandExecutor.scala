@@ -3,14 +3,10 @@ package lab0
 import java.time.LocalDateTime
 import scala.util.Try
 
-// ============================================================
-// Запуск внешних команд через os-lib (прямой запуск процесса).
-// Захватывает stdout, stderr, код возврата.
-// Результат записывается в сессию.
-// ============================================================
+// Запуск внешних команд. Сначала переводим их через CommandTranslator,
+// потом запускает процесс и захватываем stdout, stderr, код возврата
 object CommandExecutor:
 
-  // Выполнить внешнюю команду и записать её в сессию
   def execute(
                commandName: String,
                args: List[String],
@@ -18,22 +14,19 @@ object CommandExecutor:
                config: AppConfig
              ): Unit =
 
-    // Запомнить каталог до запуска и время старта
     val cwdBefore = session.cwd
     val startTime = LocalDateTime.now()
-
-    // Перевод в аналоги Windows (на Linux/macOS не меняет ничего)
-    val (exec, finalArgs) = CommandTranslator.translate(commandName, args)
     
-    // Попытаться запустить процесс
+    val (exec, finalArgs) = CommandTranslator.translate(commandName, args, cwdBefore)
+    
     val result: Either[String, (Int, String, String)] =
       Try {
-        val proc = os.proc(commandName, args).call(
-          cwd = os.Path(cwdBefore),   // рабочий каталог
-          check = false,              // не бросать исключение при ненулевом коде
-          stdout = os.Pipe,           // захватить stdout
-          stderr = os.Pipe,           // захватить stderr
-          mergeErrIntoOut = false     // держать их раздельно
+        val proc = os.proc(exec, finalArgs).call(
+          cwd = os.Path(cwdBefore),
+          check = false,
+          stdout = os.Pipe,
+          stderr = os.Pipe,
+          mergeErrIntoOut = false
         )
         (proc.exitCode, proc.out.text(), proc.err.text())
       }.toEither.left.map(_.getMessage)
@@ -41,9 +34,10 @@ object CommandExecutor:
     val endTime = LocalDateTime.now()
 
     result match
-      // Не удалось запустить процесс (команды нет, нет прав и т.п.)
+      //Запустить не удалось
       case Left(errMsg) =>
         println(s"Не удалось запустить команду: $errMsg")
+        println()
         Logger.error(s"Ошибка запуска '$commandName': $errMsg")
         session.recordCommand(
           text = (commandName :: args).mkString(" "),
@@ -53,15 +47,13 @@ object CommandExecutor:
           exitCode = 127, stdout = "", stderr = errMsg
         )
 
-      // Команда отработала — показать и записать результат
+      //Команда отработала
       case Right((exitCode, stdout, stderr)) =>
-        // Показать пользователю
         if stdout.nonEmpty then print(stdout)
         if stderr.nonEmpty then System.err.print(stderr)
-        if exitCode != 0 then
-          println(s"\nКоманда завершилась с кодом $exitCode.")
+        if exitCode != 0 then println(s"\nКоманда завершилась с кодом $exitCode.")
+        println()
 
-        // Записать в сессию
         session.recordCommand(
           text = (commandName :: args).mkString(" "),
           commandName = commandName, args = args,
