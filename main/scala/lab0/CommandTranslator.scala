@@ -12,16 +12,16 @@ object CommandTranslator:
     if !isWindows then (cmd, args)
     else
       cmd match
-        case "ls"    => translateLs(args)
-        case "cat"   => ("cmd.exe", List("/c", "type") ++ args)
-        case "pwd"   => ("cmd.exe", List("/c", "cd"))
+        case "ls" => translateLs(args)
+        case "cat" => ("cmd.exe", List("/c", "type") ++ args)
+        case "pwd" => ("cmd.exe", List("/c", "cd"))
         case "mkdir" => ("cmd.exe", List("/c", "mkdir") ++ args)
         case "touch" => translateTouch(args)
-        case "rm"    => translateRm(args, cwd)
-        case "cp"    => translateCp(args)
-        case "mv"    => ("cmd.exe", List("/c", "move") ++ args.filterNot(_.startsWith("-")))
-        case "grep"  => ("cmd.exe", List("/c", "findstr") ++ args)
-        case _       => (cmd, args)
+        case "rm" => translateRm(args, cwd)
+        case "cp" => translateCp(args)
+        case "mv" => ("cmd.exe", List("/c", "move") ++ args.filterNot(_.startsWith("-")))
+        case "grep" => ("cmd.exe", List("/c", "findstr") ++ args)
+        case _ => (cmd, args)
 
 
   //ls -> dir. Флаг -a даёт /a — показать скрытые файлы

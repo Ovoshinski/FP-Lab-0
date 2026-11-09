@@ -4,9 +4,7 @@ import java.time.LocalDateTime
 import upickle.default.*
 
 //Преобразование LocalDateTime в строку и обратно для JSON
-given ReadWriter[LocalDateTime] =
-readwriter[String].bimap[LocalDateTime](_.toString, LocalDateTime.parse)
-
+given ReadWriter[LocalDateTime] = readwriter[String].bimap[LocalDateTime](_.toString, LocalDateTime.parse)
 
 //Запись об одной выполненной команде
 case class CommandRecord(
@@ -27,7 +25,6 @@ case class CommandRecord(
                         )
   derives ReadWriter
 
-
 //Шаг отчёта. Содержит заметки пользователя и команды
 case class Step(
                  index: Int,
@@ -36,7 +33,6 @@ case class Step(
                  commands: List[CommandRecord] = Nil
                ) derives ReadWriter:
   def isEmpty: Boolean = notes.isEmpty && commands.isEmpty
-
 
 //Сессия — единица записи. Хранит название, время, пути и список шагов
 case class Session(

@@ -32,27 +32,24 @@ object ReportGenerator:
       step.notes.foreach(note => sb.append(s"$note\n\n"))
 
       step.commands.filter(_.included).foreach { rec =>
-        engine.selectRule(rec) match
-          case Some(rule) =>
-            val desc = engine.fillTemplate(rule.descriptionTemplate, rec, session)
-            sb.append(s"$desc\n\n")
-            if rule.showCommand then sb.append(s"```bash\n${rec.text}\n```\n\n")
-            appendOutput(sb, rec, rule.outputMode, rule.outputLanguage, rule.maximumLines)
+        //Прямая цитата команды
+        sb.append(s"Выполнена команда:\n\n")
+        sb.append(s"```bash\n${rec.text}\n```\n\n")
 
-          case None =>
-            sb.append(s"Выполним команду:\n\n")
-            sb.append(s"```bash\n${rec.text}\n```\n\n")
-            appendOutput(sb, rec, "full", "text", None)
+        //Вывод, если он есть
+        if rec.stdout.nonEmpty || rec.stderr.nonEmpty then
+          sb.append("Результат:\n\n")
+          val output = rec.stdout + (if rec.stderr.nonEmpty then "\n" + rec.stderr else "")
+          sb.append(s"```text\n${escapeFences(output)}\n```\n\n")
       }
     }
-    
+
+    //Ошибки
     val errors = session.steps.flatMap(_.commands).filter(c => c.included && c.exitCode != 0)
     if errors.nonEmpty then
       sb.append("## Ошибки и предупреждения\n\n")
       errors.foreach { rec =>
         sb.append(s"Команда `${rec.text}` завершилась с кодом `${rec.exitCode}`.\n\n")
-        if rec.stderr.nonEmpty then
-          sb.append(s"```text\n${escapeFences(rec.stderr)}\n```\n\n")
       }
 
     //Итоги
@@ -69,28 +66,6 @@ object ReportGenerator:
 
     sb.toString
 
-
-  //Добавить блок с выводом команды в зависимости от режима
-  private def appendOutput(
-                            sb: StringBuilder, rec: CommandRecord,
-                            mode: String, lang: String, maxLines: Option[Int]
-                          ): Unit =
-    val text = mode match
-      case "none"        => ""
-      case "errors-only" => rec.stderr
-      case "full"        => rec.stdout + (if rec.stderr.nonEmpty then "\n" + rec.stderr else "")
-      case "first-lines" => rec.stdout.linesIterator.take(maxLines.getOrElse(10)).mkString("\n")
-      case "last-lines"  => rec.stdout.linesIterator.toList.takeRight(maxLines.getOrElse(10)).mkString("\n")
-      case "limited"     => rec.stdout.linesIterator.take(maxLines.getOrElse(30)).mkString("\n")
-      case "summary"     =>
-        val lines = rec.stdout.linesIterator.size
-        s"Строк вывода: $lines, код завершения: ${rec.exitCode}"
-      case _ => rec.stdout
-
-    if text.nonEmpty then
-      sb.append(s"```$lang\n${escapeFences(text)}\n```\n\n")
-
-
-  //Экранировать ``` внутри текста, чтобы не сломать Markdown.
+  //Экранировать ``` внутри текста, чтобы не сломать Markdown
   private def escapeFences(text: String): String =
     text.replace("```", "`` `")

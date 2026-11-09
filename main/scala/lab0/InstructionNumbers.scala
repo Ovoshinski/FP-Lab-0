@@ -1,56 +1,41 @@
 package lab0
 
 //Реестр номеров команд
-// 0 — выход
-// 1-9 — файловые команды
-// 10-19 — команды для работы с отчётом
 object InstructionNumbers:
 
   val map: Map[Int, String] = Map(
     0  -> "exit",
 
+    //Файловые команды
     1  -> "cd",
     2  -> "pwd",
-    3  -> "ls",
+    3  -> "dir",
     4  -> "mkdir",
-    5  -> "touch",
-    6  -> "cat",
-    7  -> "cp",
-    8  -> "mv",
-    9  -> "rm",
+    5  -> "type",
+    6  -> "copy",
+    7  -> "move",
+    8  -> "del",
 
-    10 -> "starts",
-    11 -> "prootd",
-    12 -> "mstep",
-    13 -> "mnote",
-    14 -> "mskip",
-    15 -> "mstatus",
-    16 -> "mpreview",
-    17 -> "info",
-    18 -> "instructions",
-    19 -> "ends"
+    //Отчетные команды
+    9  -> "starts",
+    10 -> "prootd",
+    11 -> "mstep",
+    12 -> "mnote",
+    13 -> "mskip",
+    14 -> "mstatus",
+    15 -> "mpreview",
+    16 -> "info",
+    17 -> "instructions",
+    18 -> "ends"
   )
 
   val reverseMap: Map[String, Int] = map.map(_.swap)
 
-
-  //Переводит ввод в (имя_команды, аргументы)
   def resolve(input: String): (String, List[String]) =
     val (first, rest) = CommandParser.parse(input)
-
     if first.matches("\\d+") then
       map.get(first.toInt) match
-        case Some("mv") =>
-          rest.headOption match
-            case Some("rename") | Some("move") => ("mv", rest.tail)
-            case _ => ("mv", rest)
         case Some(cmd) => (cmd, rest)
         case None      => (first, rest)
     else
-      first match
-        case "rename" | "move" => ("mv", rest)
-        case "mv" =>
-          rest.headOption match
-            case Some("rename") | Some("move") => ("mv", rest.tail)
-            case _ => ("mv", rest)
-        case _ => (first, rest)
+      (first, rest)

@@ -1,10 +1,10 @@
 {
-  "shell": "/bin/bash",
+  "shell": "cmd",
   "reportDirectory": "reports",
   "sessionDirectory": "sessions",
   "logFile": "logs/report-shell.log",
-  "defaultProfile": "linux-lab",
-  
+  "defaultProfile": "windows-lab",
+
   "report": {
     "includeTimestamps": false,
     "includeExitCodes": "errors-only",
@@ -15,64 +15,43 @@
     "useRelativePaths": true
   },
   "profiles": {
-    "linux-lab": {
+    "windows-lab": {
       "titleTemplate": "Лабораторная работа: {sessionName}",
       "rules": [
-        "change-directory", "list-directory", "list-directory-detailed",
-        "create-directory", "create-file", "show-file",
-        "copy-file", "move-file", "remove-file",
-        "print-working-directory", "generic-command"
+        "change-directory", "list-directory", "create-directory",
+        "show-file", "copy-file", "move-file",
+        "remove-file", "generic-command"
       ]
     }
   },
-  
+
   "rules": [
     { "id": "change-directory", "command": "cd", "priority": 100,
       "descriptionTemplate": "Перейдём в каталог `{relativeDirectory}`.",
       "showCommand": false, "outputMode": "errors-only", "enabled": true },
-
-    { "id": "list-directory", "command": "ls", "priority": 50,
+    { "id": "list-directory", "command": "dir", "priority": 50,
       "descriptionTemplate": "Просмотрим содержимое каталога `{relativeDirectory}`.",
       "showCommand": true, "outputMode": "full", "enabled": true },
-
-    { "id": "list-directory-detailed", "command": "ls",
-      "arguments": { "containsAll": ["-l", "-a"] }, "priority": 100,
-      "descriptionTemplate": "Просмотрим подробное содержимое каталога `{relativeDirectory}`.",
-      "showCommand": true, "outputMode": "full", "enabled": true },
-
     { "id": "create-directory", "command": "mkdir", "priority": 80,
       "descriptionTemplate": "Создадим каталог `{argument1}`.",
       "showCommand": true, "outputMode": "errors-only", "enabled": true },
-
-    { "id": "create-file", "command": "touch", "priority": 80,
-      "descriptionTemplate": "Создадим файл `{argument1}`.",
-      "showCommand": true, "outputMode": "errors-only", "enabled": true },
-
-    { "id": "show-file", "command": "cat", "priority": 80,
+    { "id": "show-file", "command": "type", "priority": 80,
       "descriptionTemplate": "Просмотрим содержимое файла `{argument1}`.",
       "showCommand": true, "outputMode": "full", "enabled": true },
-
-    { "id": "copy-file", "command": "cp", "priority": 80,
+    { "id": "copy-file", "command": "copy", "priority": 80,
       "descriptionTemplate": "Скопируем `{argument1}` в `{argument2}`.",
       "showCommand": true, "outputMode": "errors-only", "enabled": true },
-
-    { "id": "move-file", "command": "mv", "priority": 80,
+    { "id": "move-file", "command": "move", "priority": 80,
       "descriptionTemplate": "Переместим `{argument1}` в `{argument2}`.",
       "showCommand": true, "outputMode": "errors-only", "enabled": true },
-
-    { "id": "remove-file", "command": "rm", "priority": 90,
+    { "id": "remove-file", "command": "del", "priority": 90,
       "descriptionTemplate": "**Внимание:** удаление `{argument1}`.",
       "showCommand": true, "outputMode": "errors-only", "enabled": true },
-
-    { "id": "print-working-directory", "command": "pwd", "priority": 80,
-      "descriptionTemplate": "Текущий рабочий каталог: `{relativeDirectory}`.",
-      "showCommand": true, "outputMode": "full", "enabled": true },
-
     { "id": "generic-command", "command": "*", "priority": 0,
       "descriptionTemplate": "Выполним команду `{command}`.",
       "showCommand": true, "outputMode": "full", "enabled": true }
   ],
-  
+
   "groupingRules": [
     { "name": "navigation-group", "rules": ["change-directory"], "strategy": "path-concatenation" },
     { "name": "creation-group", "rules": ["create-directory"], "strategy": "list-creation" }

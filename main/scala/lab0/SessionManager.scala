@@ -12,24 +12,19 @@ class SessionManager(config: AppConfig, initialCwd: String):
   private var skipNext: Boolean = false
   private var commandCounter: Int = 0
 
-
   //Текущий рабочий каталог
-  def cwd: String =
-    currentSession.map(_.currentDirectory).getOrElse(standaloneCwd)
+  def cwd: String = currentSession.map(_.currentDirectory).getOrElse(standaloneCwd)
 
-  def isActive: Boolean =
-    currentSession.exists(_.status == "active")
+  def isActive: Boolean = currentSession.exists(_.status == "active")
 
   def setSkipFlag(): Unit = skipNext = true
-
 
   //Путь к файлу сохранённой сессии
   private def sessionFilePath: String =
     val dir = os.Path(config.sessionDirectory, os.pwd)
     os.makeDir.all(dir)
     (dir / "current-session.json").toString
-
-
+  
   //Записать текущую сессию
   def saveSession(): Unit =
     currentSession.foreach { s =>
@@ -37,16 +32,14 @@ class SessionManager(config: AppConfig, initialCwd: String):
       catch case e: Exception => Logger.error(s"Не удалось сохранить сессию: ${e.getMessage}")
     }
 
-
   //Удалить файл сессии (после ends)
   def clearSessionFile(): Unit =
     try
       val p = os.Path(sessionFilePath)
       if os.exists(p) then os.remove(p)
     catch case _: Exception => ()
-
-
-  //Прочитать сессию с диска
+  
+  //Прочитать сессию
   def loadSessionFromDisk(): Option[Session] =
     try
       val p = os.Path(sessionFilePath)
@@ -57,14 +50,12 @@ class SessionManager(config: AppConfig, initialCwd: String):
         Logger.error(s"Не удалось загрузить сессию: ${e.getMessage}")
         None
 
-
   //Восстановить работу с уже загруженной сессией
   def resumeSession(s: Session): Unit =
     currentSession = Some(s)
     currentStepIndex = s.steps.size - 1
     commandCounter = s.steps.flatMap(_.commands).size
-
-
+  
   //Начать новую сессию
   def startSession(name: String): Either[String, Unit] =
     if isActive then Left("Сессия уже активна. Завершите её командой ends.")
@@ -84,8 +75,7 @@ class SessionManager(config: AppConfig, initialCwd: String):
       Logger.info(s"Начата сессия: \"${session.name}\"")
       saveSession()
       Right(())
-
-
+  
   //Задать корневой каталог сессии
   def setRoot(path: String): Either[String, Unit] =
     currentSession match
@@ -101,7 +91,6 @@ class SessionManager(config: AppConfig, initialCwd: String):
           saveSession()
           Right(())
 
-
   //Создать новый шаг
   def newStep(title: String): Either[String, Unit] =
     currentSession match
@@ -114,7 +103,6 @@ class SessionManager(config: AppConfig, initialCwd: String):
         Logger.info(s"Создан шаг #$idx: \"$actualTitle\"")
         saveSession()
         Right(())
-
 
   //Добавить комментарий в текущий шаг. Если шага нет — создаёт "Шаг 1"
   def addNote(text: String): Either[String, Unit] =
@@ -134,8 +122,7 @@ class SessionManager(config: AppConfig, initialCwd: String):
             Right(())
           case None => Left("Ошибка")
 
-
-  //Записать команду в текущий шаг (или создать "Шаг 1", если его нет)
+  //Записать команду в текущий шаг или создать "Шаг 1", если его нет
   def recordCommand(
                      text: String, commandName: String, args: List[String],
                      cwdBefore: String, cwdAfter: String,
@@ -144,7 +131,7 @@ class SessionManager(config: AppConfig, initialCwd: String):
                    ): Unit =
     currentSession.foreach { s =>
       if skipNext then
-        // Команда была помечена mskip — не попадает в отчёт.
+        //Команда была помечена mskip, то есть, не попадает в отчёт
         Logger.info(s"Команда id=$commandCounter исключена из отчёта")
         commandCounter += 1
         skipNext = false
@@ -169,8 +156,7 @@ class SessionManager(config: AppConfig, initialCwd: String):
         commandCounter += 1
         saveSession()
     }
-
-
+  
   //Сменить рабочий каталог. Работает и до, и во время сессии
   def changeDirectory(path: String): Either[String, String] =
     val actualPath = if path.trim == "up" then ".." else path.trim
@@ -186,7 +172,6 @@ class SessionManager(config: AppConfig, initialCwd: String):
       saveSession()
       Right(resolved)
 
-
   //Завершить сессию
   def endSession(): Either[String, Session] =
     currentSession match
@@ -197,8 +182,7 @@ class SessionManager(config: AppConfig, initialCwd: String):
         Logger.info(s"Сессия завершена: \"${s.name}\"")
         clearSessionFile()
         Right(finished)
-
-
+  
   def getSession: Option[Session] = currentSession
   def getCurrentStepIndex: Int = currentStepIndex
   

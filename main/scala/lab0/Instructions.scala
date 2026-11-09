@@ -82,7 +82,7 @@ object Instructions:
     reportCmds.foreach(printCmdLine)
     println()
     println("Введите номер или имя команды.")
-    println("Для подробной справки: 18 <номер_или_имя>")
+    println("Для подробной справки: 17 <номер_или_имя>")
     println()
 
 

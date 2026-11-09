@@ -2,7 +2,6 @@ package lab0
 
 import java.time.format.DateTimeFormatter
 
-//Точка входа. Проверяет незавершённую сессию, показывает справку и запускает цикл чтения команд.
 object Main:
 
   private val dateFmt = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm")
@@ -10,7 +9,6 @@ object Main:
   def main(args: Array[String]): Unit =
     System.setProperty("file.encoding", "UTF-8")
 
-    //Загрузка и проверка конфига
     val configPath = if args.nonEmpty then args(0) else "config.json"
     val config = ConfigLoader.load(configPath)
 
@@ -22,7 +20,6 @@ object Main:
       println()
     val effectiveConfig = if errors.nonEmpty then AppConfig.default else config
 
-    //Инициализация служебных объектов
     Logger.init(effectiveConfig.logFile)
     val engine  = new RuleEngine(effectiveConfig)
     val session = new SessionManager(effectiveConfig, os.pwd.toString)
@@ -30,15 +27,12 @@ object Main:
     os.makeDir.all(os.Path(effectiveConfig.reportDirectory, os.pwd))
     os.makeDir.all(os.Path(effectiveConfig.sessionDirectory, os.pwd))
 
-    //Проверка, есть ли незавершённая сессия
+    //Проверка на наличие незавершенной сессии
     session.loadSessionFromDisk() match
       case Some(s) if s.status == "active" =>
         println("Обнаружена незавершённая сессия:")
-        println()
         println(s"  Название: ${s.name}")
         println(s"  Начата:   ${s.startTime.format(dateFmt)}")
-        println(s"  Шагов:    ${s.steps.size}")
-        println(s"  Команд:   ${s.steps.flatMap(_.commands).size}")
         println()
         println("Что сделать с этой сессией?")
         println("  [1] Продолжить (вернуться в неё)")
@@ -54,17 +48,12 @@ object Main:
           else
             val trimmed = input.trim
             if trimmed == "1" || trimmed == "2" || trimmed == "3" then choice = trimmed
-            else
-              println("Неверный выбор. Введите 1, 2 или 3.")
-              println()
+            else println("Неверный выбор. Введите 1, 2 или 3.")
 
         choice match
           case "1" =>
             session.resumeSession(s)
-            println()
-            println("Сессия восстановлена.")
-            println()
-
+            println("\nСессия восстановлена.\n")
           case "2" =>
             session.resumeSession(s)
             session.endSession() match
@@ -75,12 +64,9 @@ object Main:
                 val safeName = finished.name.replaceAll("[^a-zA-Zа-яА-Я0-9_-]", "-").toLowerCase
                 val file = outDir / s"$safeName.md"
                 os.write.over(file, md)
-                println()
-                println("Сессия завершена.")
-                println(s"Отчёт сохранён: ${file.relativeTo(os.pwd)}")
-                println()
+                println("\nСессия завершена.")
+                println(s"Отчёт сохранён: ${file.relativeTo(os.pwd)}\n")
               case Left(_) => ()
-
           case "3" =>
             println("До свидания!")
             Logger.close()
@@ -88,11 +74,10 @@ object Main:
           case _ => ()
       case _ => ()
 
-    //Заголовок и список команд
+    //Заголовок
     println("====================================================")
     println("Лабораторная работа - 0: протоколируемая терминальная сессия")
     println("Вариант 9")
-    println("Автор: Дмитриев Кирилл, 24-ПО-1")
     println("====================================================")
     println()
     Instructions.show(Nil)
@@ -102,17 +87,21 @@ object Main:
     while running do
       print("report-shell> ")
       val line = scala.io.StdIn.readLine()
-      if line == null then running = false
+      if line == null then
+        running = false
       else
         val trimmed = line.trim
         if trimmed.isEmpty then ()
         else
           val (cmd, cmdArgs) = InstructionNumbers.resolve(trimmed)
-          if cmd == "exit" || cmd == "quit" then running = false
+          if cmd == "exit" || cmd == "quit" then
+            running = false
           else
             val handled = ServiceCommands.handle(cmd, cmdArgs, session, effectiveConfig, engine)
             if !handled && cmd.nonEmpty then
-              CommandExecutor.execute(cmd, cmdArgs, session, effectiveConfig)
+              //Превращаем номер в команду
+              val finalCommand = if trimmed.matches("\\d+.*") then (cmd :: cmdArgs).mkString(" ") else trimmed
+              CommandExecutor.execute(finalCommand, session, effectiveConfig)
 
     Logger.close()
     println("До новых запусков программы!")

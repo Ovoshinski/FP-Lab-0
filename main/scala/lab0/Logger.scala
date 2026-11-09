@@ -31,7 +31,7 @@ object Logger:
   //Формирует строку "[дата время] сообщение" и пишет в файл
   private def log(level: String, msg: String): Unit =
     val ts = LocalDateTime.now().format(formatter)
-    val line = s"[$ts]  $msg"
+    val line = s"[$ts] $level $msg"
     writer.foreach { w =>
       w.println(line)
       w.flush()

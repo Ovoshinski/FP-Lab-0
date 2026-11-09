@@ -69,6 +69,7 @@ case class AppConfig(
 //Запасной вариант конфига — используется, если файл не найден или сломан
 object AppConfig:
   val default: AppConfig = AppConfig(
+    shell = "bash",
     profiles = Map(
       "linux-lab" -> Profile(
         titleTemplate = "Лабораторная работа: {sessionName}",
